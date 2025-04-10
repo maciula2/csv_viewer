@@ -16,10 +16,8 @@ def upload_file(request):
             csv_file = request.FILES['file']
             df = pd.read_csv(csv_file)
             row_count = len(df)
-            column_names = list(df.columns.values)
             column_types = dict(df.dtypes)
-            while len(df) >= 50:
-                df = df.drop(len(df)-1)
+            df = df.iloc[:50]
             df_html = df.to_html(classes='table table-bordered table-hover table-sm table-striped',
                                 index=False,
                                 border=0,
@@ -27,4 +25,4 @@ def upload_file(request):
                                 escape=False)
         except Exception as e:
             df_html = f"<p style='color:red;'>Error reading file: {e}</p>"
-    return render(request, 'viewer/upload.html', {'form': form, 'df_html': df_html, 'row_count': row_count, 'column_names': column_names, 'column_types': column_types})
+    return render(request, 'viewer/upload.html', {'form': form, 'df_html': df_html, 'row_count': row_count, 'column_types': column_types})
