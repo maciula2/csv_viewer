@@ -14,15 +14,135 @@
 
     {% if df_html %}
     <hr/>
-    <div><p>Row count -</p> 
-        <pre>{{row_count}}</pre> 
-        <p>Column info - </p>
-        <pre>{{column_types}} </pre>
+    <div>
+        <p>Row count:</p>
+        <pre>{{ row_count }}</pre>
+        <p>Column info:</p>
+        <pre>{{ column_types }}</pre>
     </div>
-    
-        <hr>
-        <h2>CSV Contents (first 50 rows):</h2>
-        <div>{{ df_html|safe }}</div>
+
+    <hr>
+    <h2>CSV Contents (first 50 rows):</h2>
+    <div id="csv-table-container">{{ df_html|safe }}</div>
+
+    <!-- Modal for row editing -->
+    <div class="modal fade" id="rowEditorModal" tabindex="-1" aria-labelledby="rowEditorModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Row <span id="rowNumber"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="rowEditorForm">
+              <div class="row" id="rowInputs"></div>
+              <input type="hidden" id="rowIndex" name="rowIndex">
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="resetRow" class="btn btn-warning">Reset</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" id="saveRow" class="btn btn-primary">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% if df_html %}
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const table = document.querySelector("#csv-table-container table");
+        if (!table) {
+            console.warn('CSV table not present. Skipping row edit script.')
+        }
+      })
+      document.addEventListener("DOMContentLoaded", function () {
+        let originalValues = [];
+
+        const table = document.querySelector("#csv-table-container table");
+        if (!table) return;
+
+        table.addEventListener("click", function (e) {
+          let row = e.target.closest("tr");
+          if (!row || row.parentNode.tagName !== "TBODY") return;
+
+          const rowIndex = Array.from(table.tBodies[0].rows).indexOf(row);
+          const cells = row.cells;
+          const rowInputs = document.getElementById("rowInputs");s
+          rowInputs.innerHTML = "";
+          originalValues = [];
+
+          document.getElementById("rowNumber").innerText = rowIndex + 1;
+
+          for (let i = 0; i < cells.length; i++) {
+            originalValues.push(cells[i].innerText);
+            const colDiv = document.createElement("div");
+            colDiv.className = "col-md-6 mb-3";
+
+            const label = document.createElement("label");
+            label.className = "form-label";
+            label.innerText = "Column " + (i + 1);
+
+            const input = document.createElement("input");
+            input.className = "form-control";
+            input.value = cells[i].innerText;
+            input.dataset.colIndex = i;
+
+            colDiv.appendChild(label);
+            colDiv.appendChild(input);
+            rowInputs.appendChild(colDiv);
+          }
+
+          document.getElementById("rowIndex").value = rowIndex;
+          new bootstrap.Modal(document.getElementById("rowEditorModal")).show();
+        });
+
+        document.getElementById("resetRow").addEventListener("click", function () {
+          const inputs = document.querySelectorAll("#rowInputs input");
+          inputs.forEach((input, i) => input.value = originalValues[i]);
+        });
+
+        document.getElementById("saveRow").addEventListener("click", function () {
+          const rowIndex = document.getElementById("rowIndex").value;
+          const inputs = document.querySelectorAll("#rowInputs input");
+          const rowData = Array.from(inputs).map(input => input.value);
+
+          // Send the data to Django using FormData
+          const formData = new FormData();
+          formData.append("rowIndex", rowIndex);
+          formData.append("rowData", JSON.stringify(rowData));
+
+          fetch("/update_row/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: formData,
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              const row = table.tBodies[0].rows[rowIndex];
+              rowData.forEach((val, i) => {
+                if (row.cells[i]) {
+                  row.cells[i].innerText = val;
+                }
+              });
+              bootstrap.Modal.getInstance(document.getElementById("rowEditorModal")).hide();
+            } else {
+              alert("Failed to save row: " + data.error);
+            }
+          })
+          .catch(err => {
+            console.error("Error saving row:", err);
+            alert("Error saving row.");
+          });
+        });
+      });
+    </script>
     {% endif %}
 </body>
 </html>

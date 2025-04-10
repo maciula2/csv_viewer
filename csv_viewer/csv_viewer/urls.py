@@ -19,6 +19,7 @@ from django.urls import path
 from viewer import views
 
 urlpatterns = [
+    path('', views.update_row, name='update'),
     path('', views.upload_file, name='upload'),
     path('admin/', admin.site.urls),
 ]
